@@ -12,12 +12,15 @@ set(CMAKE_AUTOMOC ON)
 
 include(CTest)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick Qml WaylandClient)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core DBus Gui Quick Qml WaylandClient)
 find_package(Qt6CorePrivate 6.6 REQUIRED)
 find_package(Qt6GuiPrivate 6.6 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(Wayland REQUIRED IMPORTED_TARGET wayland-client)
 pkg_check_modules(XkbCommon REQUIRED IMPORTED_TARGET xkbcommon)
+pkg_check_modules(X11 REQUIRED IMPORTED_TARGET x11)
+pkg_check_modules(XInput REQUIRED IMPORTED_TARGET xi)
+pkg_check_modules(XTest REQUIRED IMPORTED_TARGET xtst)
 
 set(INPUT_METHOD_PROTOCOL ${CMAKE_CURRENT_SOURCE_DIR}/protocols/input-method-unstable-v1.xml)
 set(PROTOCOL_HEADER ${CMAKE_CURRENT_BINARY_DIR}/input-method-unstable-v1-client-protocol.h)
@@ -41,6 +44,8 @@ add_library(emojicord_core STATIC
     src/candidatemodel.h
     src/completioncontroller.cpp
     src/completioncontroller.h
+    src/contextrouter.cpp
+    src/contextrouter.h
     src/emojicatalog.cpp
     src/emojicatalog.h
     src/emojimatcher.cpp
@@ -51,13 +56,19 @@ add_library(emojicord_core STATIC
     src/usagestore.h
     src/waylandinputmethod.cpp
     src/waylandinputmethod.h
+    src/xwaylandfallback.cpp
+    src/xwaylandfallback.h
     ${PROTOCOL_HEADER}
     ${PROTOCOL_CODE}
 )
 target_link_libraries(emojicord_core PUBLIC
     Qt6::Core
+    Qt6::DBus
     PkgConfig::Wayland
     PkgConfig::XkbCommon
+    PkgConfig::X11
+    PkgConfig::XInput
+    PkgConfig::XTest
 )
 target_include_directories(emojicord_core PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -119,5 +130,6 @@ endif()
 
 install(TARGETS emoji-cord RUNTIME DESTINATION bin)
 install(FILES data/io.github.puzll.EmojiCord.desktop DESTINATION share/applications)
+install(DIRECTORY kwin/emoji-cord-context DESTINATION share/kwin/scripts)
 install(FILES README.md THIRD_PARTY.md DESTINATION share/doc/emoji-cord)
 install(FILES LICENSES/MIT.txt DESTINATION share/licenses/emoji-cord)

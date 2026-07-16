@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Name": "Emoji-cord Application Context",
+        "Description": "Reports the active application to Emoji-cord",
+        "Id": "emoji-cord-context",
+        "Version": "0.1.0",
+        "License": "GPL-3.0-or-later"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js",
+    "KPackageStructure": "KWin/Script"
+}

@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "completioncontroller.h"
+#include "contextrouter.h"
 #include "pickerwindow.h"
 #include "waylandinputmethod.h"
+#include "xwaylandfallback.h"
 
 #include <QDir>
 #include <QFile>
@@ -31,6 +33,8 @@ int main(int argc, char *argv[])
     }
 
     WaylandInputMethod inputMethod;
+    ContextRouter contextRouter;
+    XWaylandFallback xwaylandFallback;
     CompletionController controller(demoMode ? nullptr : &inputMethod);
     QString error;
     const QByteArray catalogData = catalogFile.readAll();
@@ -48,6 +52,59 @@ int main(int argc, char *argv[])
     }
 
     if (!demoMode) {
+        QString bridgeError;
+        if (!contextRouter.registerDBusBridge(&bridgeError)) {
+            QTextStream(stderr) << "Emoji-cord: active-application bridge unavailable: "
+                                << bridgeError << '\n';
+        }
+        QObject::connect(&inputMethod, &WaylandInputMethod::contextActivated,
+            &contextRouter, [&contextRouter] { contextRouter.setDirectContextActive(true); });
+        QObject::connect(&inputMethod, &WaylandInputMethod::contextDeactivated,
+            &contextRouter, [&contextRouter] { contextRouter.setDirectContextActive(false); });
+        QObject::connect(&contextRouter, &ContextRouter::activeApplicationChanged,
+            &controller, &CompletionController::dismiss);
+        if (!application.arguments().contains(QStringLiteral("--disable-xwayland-fallback"))) {
+            QString fallbackError;
+            if (xwaylandFallback.initialize(&fallbackError)) {
+                const auto applyFallbackRoute = [&controller, &xwaylandFallback](
+                                                    ContextRouter::Route route) {
+                    const bool enabled = route == ContextRouter::Route::Fallback;
+                    xwaylandFallback.setEnabled(enabled);
+                    controller.setFallbackMode(enabled);
+                };
+                QObject::connect(&contextRouter, &ContextRouter::routeChanged,
+                    &application, applyFallbackRoute);
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::steamActiveChanged,
+                    &contextRouter, &ContextRouter::setXWaylandSteamActive);
+                contextRouter.setXWaylandSteamActive(xwaylandFallback.isSteamActive());
+                contextRouter.setFallbackEnabled(true);
+                applyFallbackRoute(contextRouter.route());
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::characterObserved,
+                    &controller, &CompletionController::observeFallbackCharacter);
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::backspaceObserved,
+                    &controller, &CompletionController::observeFallbackBackspace);
+                QObject::connect(&controller, &CompletionController::visibleChanged,
+                    &application, [&controller, &xwaylandFallback] {
+                        xwaylandFallback.setNavigationActive(controller.isVisible());
+                    });
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::navigationRequested,
+                    &controller, &CompletionController::moveSelection);
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::selectionRequested,
+                    &controller, [&controller] { controller.select(); });
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::dismissalRequested,
+                    &controller, &CompletionController::dismiss);
+                QObject::connect(&controller, &CompletionController::fallbackCommitRequested,
+                    &xwaylandFallback, &XWaylandFallback::replaceShortcode);
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::replacementCommitted,
+                    &controller, &CompletionController::confirmFallbackCommit);
+                QObject::connect(&xwaylandFallback, &XWaylandFallback::routeInvalidated,
+                    &controller, &CompletionController::dismiss);
+            } else {
+                QTextStream(stderr) << "Emoji-cord: XWayland fallback unavailable: "
+                                    << fallbackError << '\n';
+            }
+        }
+
         auto *native = application.nativeInterface<QNativeInterface::QWaylandApplication>();
         if (!native) {
             QTextStream(stderr) << "Emoji-cord: the input method requires a Wayland session\n";

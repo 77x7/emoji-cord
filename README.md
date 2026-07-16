@@ -25,10 +25,12 @@ Emoji-cord is in early development and is not ready for general use. The
 catalog, query, matching, usage, Wayland input-method connection, and vertical
 caret-positioned picker are implemented. On the current development machine,
 the app imports the existing local 1,827-entry Fcitx TSV vocabulary. The
-bundled catalog remains a small licensed fixture for clean builds. Raw-input
-and synthetic-paste fallback experiments were removed after proving too
-disruptive; unsupported applications such as Steam are not supported by this
-version.
+bundled catalog remains a small licensed fixture for clean builds. Evdev,
+uinput, and normal-clipboard fallback experiments were removed after proving
+too disruptive. Steam client build `1782866176` is supported through a separate
+XWayland compatibility backend because its CEF helper creates no focused IBus
+or XIM context. Steam replacement and keyboard navigation work; reliable
+fallback picker placement at the unknown Steam caret remains open.
 
 ## Building the development scaffold
 
@@ -38,7 +40,7 @@ Install the Fedora/Nobara build dependencies:
 sudo dnf install cmake ninja-build gcc-c++ \
   qt6-qtbase-devel qt6-qtbase-private-devel \
   qt6-qtdeclarative-devel qt6-qtwayland-devel \
-  wayland-devel libxkbcommon-devel
+  wayland-devel libxkbcommon-devel libX11-devel libXi-devel libXtst-devel
 ```
 
 Configure, build, and test:
@@ -70,12 +72,17 @@ Install the development build for the current user:
 ```bash
 cmake --install build --prefix "$HOME/.local"
 update-desktop-database "$HOME/.local/share/applications"
+kwriteconfig6 --file kwinrc --group Plugins \
+  --key emoji-cord-contextEnabled true
 ```
 
 Open **System Settings > Keyboard > Virtual Keyboard**, select **Emoji-cord**,
 and test in KWrite or another normal Qt text field. When present, Emoji-cord
 loads `~/.local/share/fcitx5/emojicomplete/emoji.tsv`, currently containing
 1,827 aliases.
+
+The installed KWin script reports active-window identity for the Steam
+compatibility path. Log out and back in after enabling it for the first time.
 
 Expected behavior:
 
@@ -101,10 +108,9 @@ Then log out and back in.
   query.
 - Replace the typed shortcode with the selected Unicode emoji.
 - Work across as much of a Plasma Wayland session as technically possible.
-- Prefer direct input-method commits and use synthetic paste only when an
-  application does not support the Wayland text-input protocols.
-- Place the popup at the caret when KWin has that information and near the
-  pointer as a fallback.
+- Prefer direct input-method commits and use only compositor-authorized
+  fallback control when an application lacks a usable text-input context.
+- Place the popup at the caret when the target exposes reliable geometry.
 - Follow the active KDE color scheme, font, scale, and accent color.
 - Rank frequently selected emoji above less frequently selected alternatives.
 - Keep all usage data on the local machine.
@@ -118,8 +124,7 @@ Then log out and back in.
 - Copying Discord's assets, branding, or exact visual design.
 - Bundling an emoji image set. Emoji-cord renders glyphs from the user's
   configured system fonts.
-- Recording general typing history. The fallback listener retains only a
-  bounded candidate shortcode while completion is armed.
+- Recording general typing history.
 
 ## Interaction
 
@@ -194,41 +199,40 @@ Steam and some shell or custom-rendered fields do not expose a usable Wayland
 text-input context. A normal Wayland client cannot globally observe keyboard
 input, discover the caret, or inject text into these applications.
 
-For those contexts, Emoji-cord uses a constrained fallback:
+Steam under XWayland uses a separate compatibility backend. It passively reads
+XI2 events without grabbing or forwarding normal typing, retains only the
+active shortcode, and rechecks the active X11 window on every event. Direct
+Wayland input-method contexts always take priority, and fallback eligibility is
+limited to an explicit Steam identity allowlist.
 
-1. Read keyboard events from active-session keyboard devices using libevdev.
-2. Translate keycodes with xkbcommon and retain only the active shortcode.
-3. Display the same picker near the pointer instead of the unknown caret.
-4. Send Backspaces through a named uinput device to erase the shortcode.
-5. Temporarily offer the emoji through the clipboard and synthesize the
-   application's paste shortcut.
-6. Restore the previous clipboard offer after the paste has been consumed.
+Replacement sends native Backspaces through XTEST, temporarily offers the emoji
+through X11's PRIMARY selection, and middle-clicks the saved Steam text-field
+position. Existing PRIMARY text is copied and re-offered after insertion. While
+the fallback candidate list is visible, only Up, Down, Enter, keypad Enter, and
+Escape are grabbed so Steam cannot act on navigation keys. The whole keyboard
+is never grabbed.
 
-The application's own virtual device is excluded from monitoring so generated
-events cannot retrigger completion. Device enumeration supports keyboard
-hotplug and multiple physical keyboards.
-
-On Plasma sessions with XWayland, the pointer fallback can query XWayland's
-synchronized pointer position. A pure-Wayland session without an available
-pointer position falls back to a stable location on the active output.
+Steam does not expose a caret rectangle through text-input, XIM, or AT-SPI on
+the tested build. Correct fallback picker placement is therefore unresolved;
+the normal Wayland picker remains compositor-positioned at the caret and is not
+modified by this compatibility backend.
 
 ### Active application and suppression
 
-The virtual-keyboard desktop entry requests KDE's Wayland window-management
-interface. Emoji-cord uses the active application's stable identifier for
-per-application settings and paste-key selection.
+An optional KWin script reports the active application's desktop-file name and
+XWayland resource identity to Emoji-cord. These values are routing hints, not
+security identities, and are matched only against an explicit allowlist.
 
 Completion is suspended when:
 
 - The screen is locked.
 - A supported text context reports password or sensitive content.
-- The active application is on the user's denylist.
-- The user activates the global pause action.
+- The active application is not the explicitly supported Steam XWayland client.
 
 Unsupported applications cannot reveal whether an individual field is a
-password field. This is a Wayland/application limitation, not something an
-input listener can reliably infer. Users must denylist sensitive applications
-or pause fallback completion before typing into unsupported sensitive fields.
+password field. The current Steam-wide fallback cannot distinguish chat from
+login fields, so it must not be used while entering sensitive text. It can be
+disabled with `--disable-xwayland-fallback`.
 
 ### Runtime components
 
@@ -238,10 +242,11 @@ or pause fallback completion before typing into unsupported sensitive fields.
 - `EmojiMatcher`: quality tiers, fuzzy scoring, and deterministic ordering.
 - `UsageStore`: atomic local frequency and recency persistence.
 - `InputMethodBackend`: privileged Wayland input method and direct commits.
-- `FallbackInputBackend`: libevdev monitoring and uinput event generation.
-- `ContextTracker`: lock state, active application, sensitivity, and denylist.
+- `ContextRouter`: active application, direct-context priority, and fail-closed
+  fallback eligibility.
+- `XWaylandFallback`: Steam-only XI2 observation, scoped navigation grabs,
+  XTEST deletion, and PRIMARY insertion.
 - `PickerWindow`: themed, vertical, non-activating candidate overlay.
-- `ClipboardInserter`: temporary clipboard ownership and fallback paste.
 
 ## Why Emoji-cord is a virtual keyboard
 
@@ -257,18 +262,19 @@ context from applications that do not implement the relevant protocols.
 
 ## Security and privacy
 
-Raw keyboard access is powerful and must be visible to users and distributors.
-Emoji-cord follows these constraints:
+Fallback input control is powerful and must be visible to users and
+distributors. Emoji-cord follows these constraints:
 
-- Device access is granted to the active local session with udev `uaccess`,
-  not by running the application as root.
-- No continuously running privileged helper is used.
-- Raw events are processed locally and never transmitted.
+- No raw input-device access, whole-keyboard grab, uinput device, or
+  continuously running privileged helper is used.
+- XI2 events outside the verified Steam route are discarded immediately.
+- Only fallback navigation keys are grabbed, and only while candidates are
+  visible.
 - Unrelated text is not buffered, logged, or persisted.
-- Query storage is capped and cleared on focus changes, cancellation, lock,
-  unsupported characters, and timeout.
+- Query storage is capped and cleared on focus changes, cancellation, lock, and
+  unsupported characters.
 - Sensitive input suppression is used whenever the target provides metadata.
-- Fallback can be disabled globally or per application.
+- Fallback can be disabled globally from the command line.
 - Usage history contains emoji aliases only and can be cleared from settings.
 
 The project will include a dedicated threat-model document before its first
@@ -311,8 +317,8 @@ contain:
 - A generated third-party attribution and provenance report.
 - Source code for every generator used to create bundled data.
 
-Qt, KDE Frameworks, LayerShellQt, Wayland, libevdev, libudev, xkbcommon, and
-X11/XCB are dynamically linked system dependencies. Their notices and exact
+Qt, Wayland, xkbcommon, Xlib, XI, and XTest are dynamically linked system
+dependencies. Their notices and exact
 roles will be documented in `THIRD_PARTY.md`. Emoji-cord is not affiliated
 with or endorsed by Discord, GitHub, KDE, or Unicode, Inc.
 
@@ -322,12 +328,9 @@ with or endorsed by Discord, GitHub, KDE, or Unicode, Inc.
 - A C++20 compiler
 - Qt 6 Core, Gui, Quick, QML, DBus, and Test
 - Qt Wayland development interfaces
-- KDE LayerShellQt and Kirigami
 - Wayland client and scanner
-- libevdev
-- libudev
 - xkbcommon
-- XCB for the XWayland pointer-position fallback
+- Xlib, XI2, and XTest for the Steam XWayland compatibility backend
 
 Fedora and Nobara package names will be documented once the first end-to-end
 prototype builds successfully.
@@ -364,12 +367,11 @@ prototype builds successfully.
 
 ### Milestone 4: Unsupported-application fallback
 
-- Active-session libevdev access and hotplug.
-- Layout-aware xkbcommon translation.
-- Named uinput keyboard with self-event exclusion.
-- Clipboard preservation and configurable paste shortcuts.
-- Active-application denylist and lock-screen suspension.
-- XWayland pointer fallback and pure-Wayland safe placement.
+- Steam-only XI2 observation and XTEST deletion.
+- Scoped fallback navigation-key grabs.
+- PRIMARY selection preservation and Unicode insertion.
+- Active-application routing and lock-screen suspension.
+- A reliable source for Steam caret geometry and separate fallback placement.
 
 ### Milestone 5: Distribution
 
@@ -384,7 +386,7 @@ prototype builds successfully.
 
 Automated tests cover query transitions, matching tiers, fuzzy score stability,
 usage ordering, malformed data, atomic persistence, multi-codepoint emoji,
-skin-tone sequences, flags, key forwarding, and synthetic-device exclusion.
+skin-tone sequences, flags, key forwarding, and fallback route isolation.
 
 Manual release testing includes:
 
@@ -394,18 +396,18 @@ Manual release testing includes:
 - Chromium/Electron applications.
 - Native Wayland and XWayland clients.
 - Terminals with application-specific paste shortcuts.
-- Password fields, denylisted applications, and the lock screen.
+- Password fields, unsupported applications, and the lock screen.
 - Multiple keyboards, keyboard reconnects, and layout changes.
 - Multiple monitors with fractional and mixed scaling.
-- Clipboard restoration with text and non-text MIME offers.
+- PRIMARY preservation and focus-change races.
 
 ## Acceptance criteria for the first usable release
 
 - Typing `:sk` opens one vertical, KDE-themed picker without moving focus.
 - Selecting `:skull:` replaces the typed shortcode with `💀`.
 - Selection works through direct commits in compliant clients.
-- The same interaction works through fallback insertion in Steam chat and the
-  Plasma Application Launcher.
+- The same interaction works through fallback insertion in Steam chat and
+  direct commits in the Plasma Application Launcher.
 - Frequently selected aliases are ranked first among otherwise equivalent
   matches and survive application restarts.
 - No raw query or unrelated typed text is written to logs or usage storage.

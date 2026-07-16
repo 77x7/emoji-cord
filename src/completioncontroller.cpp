@@ -156,6 +156,15 @@ bool CompletionController::handleKey(const WaylandInputMethod::KeyEvent &event)
     return consumed;
 }
 
+void CompletionController::setFallbackMode(bool enabled)
+{
+    if (m_fallbackMode == enabled) {
+        return;
+    }
+    m_fallbackMode = enabled;
+    reset();
+}
+
 CandidateModel *CompletionController::candidates()
 {
     return &m_candidates;
@@ -205,16 +214,63 @@ void CompletionController::commitEntry(const EmojiEntry *entry)
         return;
     }
 
+    const qsizetype shortcodeLength = m_query.shortcodeLength();
     const std::uint32_t eraseBytes = std::uint32_t(1 + m_query.query().toString().toUtf8().size());
-    if (m_inputMethod) {
+    if (m_fallbackMode) {
+        emit fallbackCommitRequested(int(shortcodeLength), entry->emoji, entry->alias);
+    } else if (m_inputMethod) {
         m_inputMethod->deleteAndCommit(eraseBytes, entry->emoji);
     }
-    m_usage.record(entry->alias);
+    if (!m_fallbackMode) {
+        m_usage.record(entry->alias);
+        if (!m_usagePath.isEmpty()) {
+            m_usage.save(m_usagePath);
+        }
+        emit committed(entry->emoji, entry->alias);
+    }
+    reset();
+}
+
+void CompletionController::observeFallbackCharacter(QChar character)
+{
+    if (!m_fallbackMode) {
+        return;
+    }
+    const QueryState::Change change = m_query.input(character);
+    if (change == QueryState::Change::ExactRequested) {
+        const QVector<EmojiMatch> exact = EmojiMatcher::match(
+            m_catalog, m_query.query(), m_usage, 1);
+        if (!exact.isEmpty() && exact.first().tier == MatchTier::Exact) {
+            const int eraseCharacters = int(m_query.shortcodeLength(true));
+            const EmojiEntry *entry = exact.first().entry;
+            emit fallbackCommitRequested(eraseCharacters, entry->emoji, entry->alias);
+            reset();
+            return;
+        }
+        m_query.cancel();
+        m_query.input(u':');
+    }
+    emit queryChanged();
+    updateMatches();
+}
+
+void CompletionController::confirmFallbackCommit(const QString &emoji, const QString &alias)
+{
+    m_usage.record(alias);
     if (!m_usagePath.isEmpty()) {
         m_usage.save(m_usagePath);
     }
-    emit committed(entry->emoji, entry->alias);
-    reset();
+    emit committed(emoji, alias);
+}
+
+void CompletionController::observeFallbackBackspace()
+{
+    if (!m_fallbackMode || !m_query.isArmed()) {
+        return;
+    }
+    m_query.backspace();
+    emit queryChanged();
+    updateMatches();
 }
 
 void CompletionController::dismiss()

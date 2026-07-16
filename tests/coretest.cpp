@@ -4,10 +4,12 @@
 #include "emojicatalog.h"
 #include "emojimatcher.h"
 #include "completioncontroller.h"
+#include "contextrouter.h"
 #include "querystate.h"
 #include "usagestore.h"
 
 #include <QFile>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -31,6 +33,10 @@ private slots:
     void controllerConsumesNavigationAndExactCompletion();
     void controllerRetainsConsumedReleaseAcrossSelection();
     void demoInputRefinesAndRestartsQuery();
+    void contextRouterFailsClosed();
+    void contextRouterPrioritizesDirectInput();
+    void fallbackExactCompletionIncludesClosingColon();
+    void fallbackSelectionExcludesClosingColon();
     void usageRoundTripsAtomically();
 };
 
@@ -252,6 +258,105 @@ void CoreTest::demoInputRefinesAndRestartsQuery()
     QCOMPARE(controller.query(), QStringLiteral("thi"));
     QCOMPARE(controller.candidates()->rowCount(), 1);
     QCOMPARE(controller.candidates()->entryAt(0)->alias, QStringLiteral("thinking"));
+}
+
+void CoreTest::contextRouterFailsClosed()
+{
+    ContextRouter router;
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+
+    router.setFallbackEnabled(true);
+    router.activeWindowChanged(QStringLiteral("window-1"), QStringLiteral("org.kde.kate"),
+        QStringLiteral("kate"), QStringLiteral("kate"), true);
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+
+    router.activeWindowChanged(QStringLiteral("window-2"),
+        QStringLiteral("com.valvesoftware.Steam.desktop"), QString(), QString(), true);
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+
+    router.setSessionLocked(false);
+    QCOMPARE(router.route(), ContextRouter::Route::Fallback);
+
+    router.setSessionLocked(true);
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+
+    router.setSessionLocked(false);
+    QCOMPARE(router.route(), ContextRouter::Route::Fallback);
+    router.serviceOwnerChanged(QStringLiteral("org.freedesktop.ScreenSaver"),
+        QStringLiteral(":1.1"), QString());
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+
+    router.activeWindowChanged(QString(), QString(), QString(), QString(), false);
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+}
+
+void CoreTest::contextRouterPrioritizesDirectInput()
+{
+    ContextRouter router;
+    router.setFallbackEnabled(true);
+    router.setSessionLocked(false);
+    router.activeWindowChanged(QStringLiteral("window-1"), QStringLiteral("steam"),
+        QString(), QString(), true);
+    QCOMPARE(router.route(), ContextRouter::Route::Fallback);
+
+    router.setDirectContextActive(true);
+    QCOMPARE(router.route(), ContextRouter::Route::Direct);
+
+    router.activeWindowChanged(QStringLiteral("window-2"), QStringLiteral("org.kde.kate"),
+        QString(), QString(), true);
+    QCOMPARE(router.route(), ContextRouter::Route::Direct);
+
+    router.setDirectContextActive(false);
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+
+    router.activeWindowChanged(QStringLiteral("window-3"), QStringLiteral("steam"),
+        QString(), QString(), true);
+    QCOMPARE(router.route(), ContextRouter::Route::Fallback);
+    router.serviceOwnerChanged(QStringLiteral("org.kde.KWin"),
+        QStringLiteral(":1.2"), QString());
+    QCOMPARE(router.route(), ContextRouter::Route::None);
+}
+
+void CoreTest::fallbackExactCompletionIncludesClosingColon()
+{
+    CompletionController controller(nullptr);
+    QString error;
+    QVERIFY2(controller.loadCatalog(catalogJson, &error), qPrintable(error));
+    controller.setFallbackMode(true);
+    QSignalSpy commits(&controller, &CompletionController::fallbackCommitRequested);
+    QSignalSpy confirmed(&controller, &CompletionController::committed);
+
+    for (const QChar character : QStringLiteral(":skull:")) {
+        controller.observeFallbackCharacter(character);
+    }
+
+    QCOMPARE(commits.count(), 1);
+    QCOMPARE(commits.first().at(0).toInt(), 7);
+    QCOMPARE(commits.first().at(1).toString(), QStringLiteral("💀"));
+    QCOMPARE(confirmed.count(), 0);
+    controller.confirmFallbackCommit(commits.first().at(1).toString(),
+        commits.first().at(2).toString());
+    QCOMPARE(confirmed.count(), 1);
+    QVERIFY(!controller.isVisible());
+}
+
+void CoreTest::fallbackSelectionExcludesClosingColon()
+{
+    CompletionController controller(nullptr);
+    QString error;
+    QVERIFY2(controller.loadCatalog(catalogJson, &error), qPrintable(error));
+    controller.setFallbackMode(true);
+    QSignalSpy commits(&controller, &CompletionController::fallbackCommitRequested);
+
+    for (const QChar character : QStringLiteral(":sk")) {
+        controller.observeFallbackCharacter(character);
+    }
+    const QString selectedEmoji = controller.candidates()->selectedEntry()->emoji;
+    controller.select(0);
+
+    QCOMPARE(commits.count(), 1);
+    QCOMPARE(commits.first().at(0).toInt(), 3);
+    QCOMPARE(commits.first().at(1).toString(), selectedEmoji);
 }
 
 void CoreTest::usageRoundTripsAtomically()

@@ -28,6 +28,7 @@ public:
     bool loadUsage(const QString &path, QString *error = nullptr);
     void setUsagePath(QString path);
     bool handleKey(const WaylandInputMethod::KeyEvent &event);
+    void setFallbackMode(bool enabled);
 
     CandidateModel *candidates();
     bool isVisible() const;
@@ -40,10 +41,17 @@ public:
     Q_INVOKABLE void demoInput(const QString &text);
     Q_INVOKABLE void demoBackspace();
 
+public slots:
+    void observeFallbackCharacter(QChar character);
+    void observeFallbackBackspace();
+    void confirmFallbackCommit(const QString &emoji, const QString &alias);
+
 signals:
     void visibleChanged();
     void queryChanged();
     void committed(const QString &emoji, const QString &alias);
+    void fallbackCommitRequested(int eraseCharacters, const QString &emoji,
+        const QString &alias);
 
 private:
     void updateMatches();
@@ -59,4 +67,5 @@ private:
     QSet<std::uint32_t> m_consumedKeys;
     QString m_usagePath;
     bool m_visible = false;
+    bool m_fallbackMode = false;
 };

@@ -27,8 +27,9 @@ Unicode/CLDR sources and will include a machine-generated provenance report.
 
 ## Runtime and build dependencies
 
-Emoji-cord dynamically links Qt 6, Qt Wayland Client, Wayland Client, and
-xkbcommon from the operating system. Their source is not bundled. The
+Emoji-cord dynamically links Qt 6, Qt Wayland Client, Wayland Client,
+xkbcommon, Xlib, XI, and XTest from the operating system. Their source is not
+bundled. The
 caret-positioned picker uses QtWayland private interfaces and must be rebuilt
 when the distribution changes to an ABI-incompatible Qt build.
 
