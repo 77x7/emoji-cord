@@ -1,0 +1,5 @@
+SPDX-FileCopyrightText: 2019 GitHub, Inc.
+SPDX-License-Identifier: MIT
+
+Data is a small transformed subset of github/gemoji for development only.
+Source: https://github.com/github/gemoji

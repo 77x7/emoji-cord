@@ -1,0 +1,14 @@
+[
+  {"alias":"skull","emoji":"💀","aliases":[],"keywords":["dead","danger","poison"]},
+  {"alias":"skull_and_crossbones","emoji":"☠️","aliases":[],"keywords":["danger","pirate"]},
+  {"alias":"skier","emoji":"⛷️","aliases":[],"keywords":["sport","snow"]},
+  {"alias":"ski","emoji":"🎿","aliases":[],"keywords":["sport","snow"]},
+  {"alias":"thinking","emoji":"🤔","aliases":[],"keywords":["think","hmm","face"]},
+  {"alias":"smile","emoji":"😄","aliases":[],"keywords":["happy","joy","laugh"]},
+  {"alias":"smiley","emoji":"😃","aliases":[],"keywords":["happy","joy"]},
+  {"alias":"sparkles","emoji":"✨","aliases":[],"keywords":["stars","shine"]},
+  {"alias":"sparkling_heart","emoji":"💖","aliases":[],"keywords":["love"]},
+  {"alias":"snake","emoji":"🐍","aliases":[],"keywords":["python"]},
+  {"alias":"snowflake","emoji":"❄️","aliases":[],"keywords":["winter","cold"]},
+  {"alias":"sob","emoji":"😭","aliases":[],"keywords":["sad","cry"]}
+]
