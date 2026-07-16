@@ -27,7 +27,7 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void setMatches(const QVector<EmojiMatch> &matches, qsizetype maximumRows = 8);
+    void setMatches(const QVector<EmojiMatch> &matches);
     void clear();
     int selectedIndex() const;
     void setSelectedIndex(int index);

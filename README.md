@@ -93,6 +93,21 @@ Expected behavior:
 - A complete `:skull:` replaces itself immediately.
 - Escape dismisses the picker without changing the typed shortcode.
 
+### Settings
+
+Open **Emoji-cord Settings** from the KDE Application Launcher, or run:
+
+```bash
+emoji-cord --settings
+```
+
+**Suggestions shown at once** accepts any positive integer and defaults to 8.
+The value controls the picker's viewport height; every matching suggestion is
+still loaded and remains available by scrolling. It is stored in
+`~/.config/emoji-cord/settings.json` and is applied immediately when the input
+method is running. The viewport is constrained further when necessary to fit
+the current screen.
+
 Switch back to **Fcitx 5** in the same settings page after testing. If keyboard
 input is unusable, switch to a TTY and restore the configured input method:
 
@@ -141,10 +156,11 @@ the query. The popup stays hidden until at least one result exists.
 | `Backspace` | Shorten the query and update results |
 | Mouse click | Select a candidate |
 
-The initial popup shows at most eight rows. Each row contains an emoji preview
-and its canonical `:alias:`. The selected row uses the current KDE selection
-and accent colors. The window does not take keyboard focus from the target
-application.
+The popup loads every matching suggestion and shows eight rows at once by
+default. Each row contains an emoji preview and its canonical `:alias:`. The
+selected row uses the current KDE selection and accent colors. Additional
+results remain available by scrolling, and the window does not take keyboard
+focus from the target application.
 
 ## Matching and ranking
 

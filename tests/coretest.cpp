@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Emoji-cord contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "appsettings.h"
 #include "emojicatalog.h"
 #include "emojimatcher.h"
 #include "completioncontroller.h"
@@ -33,11 +34,13 @@ private slots:
     void controllerConsumesNavigationAndExactCompletion();
     void controllerRetainsConsumedReleaseAcrossSelection();
     void controllerRestoresQueryFromSurroundingText();
+    void controllerLoadsEverySuggestion();
     void demoInputRefinesAndRestartsQuery();
     void contextRouterFailsClosed();
     void contextRouterPrioritizesDirectInput();
     void fallbackExactCompletionIncludesClosingColon();
     void fallbackSelectionExcludesClosingColon();
+    void settingsPersistAndValidateVisibleSuggestions();
     void usageRoundTripsAtomically();
 };
 
@@ -263,6 +266,25 @@ void CoreTest::controllerRestoresQueryFromSurroundingText()
     QVERIFY(!controller.isVisible());
 }
 
+void CoreTest::controllerLoadsEverySuggestion()
+{
+    CompletionController controller(nullptr);
+    QByteArray largeCatalog("[");
+    for (int index = 0; index < 100; ++index) {
+        if (index > 0) {
+            largeCatalog.append(',');
+        }
+        largeCatalog.append(QStringLiteral("{\"alias\":\"match%1\",\"emoji\":\"x\"}")
+                                .arg(index)
+                                .toUtf8());
+    }
+    largeCatalog.append(']');
+    QString error;
+    QVERIFY2(controller.loadCatalog(largeCatalog, &error), qPrintable(error));
+    controller.preview(QStringLiteral("match"));
+    QCOMPARE(controller.candidates()->rowCount(), 100);
+}
+
 void CoreTest::demoInputRefinesAndRestartsQuery()
 {
     CompletionController controller(nullptr);
@@ -384,6 +406,32 @@ void CoreTest::fallbackSelectionExcludesClosingColon()
     QCOMPARE(commits.count(), 1);
     QCOMPARE(commits.first().at(0).toInt(), 3);
     QCOMPARE(commits.first().at(1).toString(), selectedEmoji);
+}
+
+void CoreTest::settingsPersistAndValidateVisibleSuggestions()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString path = directory.filePath(QStringLiteral("nested/settings.json"));
+
+    AppSettings settings(path);
+    QCOMPARE(settings.visibleSuggestions(), AppSettings::defaultVisibleSuggestions);
+    QVERIFY(settings.updateVisibleSuggestions(17));
+    QCOMPARE(settings.visibleSuggestions(), 17);
+    QVERIFY(!settings.updateVisibleSuggestions(0));
+    QCOMPARE(settings.visibleSuggestions(), 17);
+
+    AppSettings restored(path);
+    QCOMPARE(restored.visibleSuggestions(), 17);
+    QVERIFY(restored.error().isEmpty());
+
+    QFile malformed(path);
+    QVERIFY(malformed.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QCOMPARE(malformed.write("{\"maxSuggestions\": -2}"), qint64(22));
+    malformed.close();
+    AppSettings rejected(path);
+    QCOMPARE(rejected.visibleSuggestions(), AppSettings::defaultVisibleSuggestions);
+    QVERIFY(!rejected.error().isEmpty());
 }
 
 void CoreTest::usageRoundTripsAtomically()

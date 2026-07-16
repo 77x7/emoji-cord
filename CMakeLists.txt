@@ -12,7 +12,7 @@ set(CMAKE_AUTOMOC ON)
 
 include(CTest)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core DBus Gui Quick Qml WaylandClient)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core DBus Gui Quick QuickControls2 Qml WaylandClient)
 find_package(Qt6CorePrivate 6.6 REQUIRED)
 find_package(Qt6GuiPrivate 6.6 REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -56,6 +56,8 @@ add_custom_command(
 )
 
 add_library(emojicord_core STATIC
+    src/appsettings.cpp
+    src/appsettings.h
     src/candidatemodel.cpp
     src/candidatemodel.h
     src/completioncontroller.cpp
@@ -105,6 +107,7 @@ target_link_libraries(emoji-cord PRIVATE
     Qt6::Gui
     Qt6::GuiPrivate
     Qt6::Quick
+    Qt6::QuickControls2
     Qt6::Qml
     Qt6::WaylandClient
 )
@@ -139,6 +142,7 @@ qt_add_resources(emoji-cord picker_resources
     FILES
         data/emoji-demo.json
         qml/Picker.qml
+        qml/Settings.qml
 )
 
 if(BUILD_TESTING)
@@ -149,7 +153,10 @@ if(BUILD_TESTING)
 endif()
 
 install(TARGETS emoji-cord RUNTIME DESTINATION bin)
-install(FILES data/io.github.puzll.EmojiCord.desktop DESTINATION share/applications)
+install(FILES
+    data/io.github.puzll.EmojiCord.desktop
+    data/io.github.puzll.EmojiCord.Settings.desktop
+    DESTINATION share/applications)
 install(DIRECTORY kwin/emoji-cord-context DESTINATION share/kwin/scripts)
 install(FILES README.md THIRD_PARTY.md DESTINATION share/doc/emoji-cord)
 install(FILES LICENSES/MIT.txt DESTINATION share/licenses/emoji-cord)

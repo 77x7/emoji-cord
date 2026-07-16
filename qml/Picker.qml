@@ -45,9 +45,10 @@ Rectangle {
 
         anchors.fill: parent
         anchors.margins: 4
+        anchors.rightMargin: contentHeight > height ? 14 : 4
         model: completionController.candidates
         spacing: 0
-        interactive: false
+        interactive: contentHeight > height
         currentIndex: completionController.candidates.selectedIndex
 
         delegate: Rectangle {
@@ -94,6 +95,65 @@ Rectangle {
                 hoverEnabled: true
                 onEntered: completionController.candidates.selectedIndex = row.index
                 onClicked: completionController.select(row.index)
+            }
+        }
+    }
+
+    Item {
+        id: scrollBar
+
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.topMargin: 6
+        anchors.bottomMargin: 6
+        anchors.rightMargin: 3
+        width: 10
+        visible: list.contentHeight > list.height
+
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 4
+            height: parent.height
+            radius: 2
+            color: Qt.alpha(palette.windowText, 0.14)
+        }
+
+        Rectangle {
+            id: scrollThumb
+
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 4
+            height: Math.max(20, scrollBar.height * list.height / list.contentHeight)
+            y: {
+                const range = list.contentHeight - list.height
+                const progress = range > 0
+                    ? Math.max(0, Math.min(1, list.contentY / range))
+                    : 0
+                return progress * (scrollBar.height - height)
+            }
+            radius: 2
+            color: palette.highlight
+        }
+
+        MouseArea {
+            anchors.fill: parent
+
+            function moveTo(pointerY) {
+                const thumbRange = scrollBar.height - scrollThumb.height
+                if (thumbRange <= 0) {
+                    return
+                }
+                const progress = Math.max(0, Math.min(1,
+                    (pointerY - scrollThumb.height / 2) / thumbRange))
+                list.contentY = progress * (list.contentHeight - list.height)
+            }
+
+            onPressed: mouse => moveTo(mouse.y)
+            onPositionChanged: mouse => {
+                if (pressed) {
+                    moveTo(mouse.y)
+                }
             }
         }
     }

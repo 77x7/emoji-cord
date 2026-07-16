@@ -45,13 +45,12 @@ QHash<int, QByteArray> CandidateModel::roleNames() const
     };
 }
 
-void CandidateModel::setMatches(const QVector<EmojiMatch> &matches, qsizetype maximumRows)
+void CandidateModel::setMatches(const QVector<EmojiMatch> &matches)
 {
     beginResetModel();
     m_rows.clear();
-    const qsizetype count = std::min(maximumRows, matches.size());
-    m_rows.reserve(count);
-    for (qsizetype index = 0; index < count; ++index) {
+    m_rows.reserve(matches.size());
+    for (qsizetype index = 0; index < matches.size(); ++index) {
         m_rows.append({matches.at(index).entry, matches.at(index).tier});
     }
     m_selectedIndex = m_rows.isEmpty() ? -1 : 0;

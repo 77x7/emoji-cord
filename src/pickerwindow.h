@@ -8,6 +8,7 @@
 #include <memory>
 
 class CompletionController;
+class AppSettings;
 class FallbackLayerShellIntegration;
 class InputPanelShellIntegration;
 class WaylandInputMethod;
@@ -23,7 +24,8 @@ public:
         Fallback,
     };
 
-    PickerWindow(CompletionController *controller, WaylandInputMethod *inputMethod,
+    PickerWindow(CompletionController *controller, AppSettings *settings,
+        WaylandInputMethod *inputMethod,
         Mode mode, QWindow *parent = nullptr);
     ~PickerWindow() override;
 
@@ -37,6 +39,7 @@ private:
     void updateFallbackLayerPosition();
 
     CompletionController *m_controller = nullptr;
+    AppSettings *m_settings = nullptr;
     WaylandInputMethod *m_inputMethod = nullptr;
     std::unique_ptr<InputPanelShellIntegration> m_shellIntegration;
     std::unique_ptr<FallbackLayerShellIntegration> m_fallbackShellIntegration;

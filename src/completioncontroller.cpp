@@ -307,7 +307,7 @@ void CompletionController::demoInput(const QString &text)
             const QVector<EmojiMatch> exact = EmojiMatcher::match(
                 m_catalog, m_query.query(), m_usage, 1);
             if (!exact.isEmpty() && exact.first().tier == MatchTier::Exact) {
-                m_candidates.setMatches(exact, 1);
+                m_candidates.setMatches(exact);
                 select(0);
                 return;
             }
@@ -338,8 +338,9 @@ void CompletionController::updateMatches()
         setVisible(false);
         return;
     }
-    const QVector<EmojiMatch> matches = EmojiMatcher::match(m_catalog, m_query.query(), m_usage, 8);
-    m_candidates.setMatches(matches, 8);
+    const QVector<EmojiMatch> matches = EmojiMatcher::match(
+        m_catalog, m_query.query(), m_usage, m_catalog.entries().size());
+    m_candidates.setMatches(matches);
     setVisible(!matches.isEmpty());
 }
 

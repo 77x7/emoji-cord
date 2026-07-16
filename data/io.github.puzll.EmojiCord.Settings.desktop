@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Emoji-cord contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[Desktop Entry]
+Name=Emoji-cord Settings
+GenericName=Emoji Completion Settings
+Comment=Configure Emoji-cord suggestions
+Exec=emoji-cord --settings
+Icon=preferences-desktop-keyboard
+Terminal=false
+Type=Application
+Categories=Settings;
+OnlyShowIn=KDE;
+StartupNotify=true

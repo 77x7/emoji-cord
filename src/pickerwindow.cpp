@@ -3,6 +3,7 @@
 
 #include "pickerwindow.h"
 
+#include "appsettings.h"
 #include "completioncontroller.h"
 #include "fallbacklayershell.h"
 #include "inputpanelshell.h"
@@ -14,15 +15,22 @@
 #include <QQmlContext>
 #include <QtWaylandClient/private/qwaylandwindow_p.h>
 
-PickerWindow::PickerWindow(CompletionController *controller,
+#include <algorithm>
+
+PickerWindow::PickerWindow(CompletionController *controller, AppSettings *settings,
     WaylandInputMethod *inputMethod, Mode mode, QWindow *parent)
     : QQuickView(parent)
     , m_controller(controller)
+    , m_settings(settings)
     , m_inputMethod(inputMethod)
     , m_mode(mode)
 {
     setTitle(QStringLiteral("Emoji-cord"));
     setColor(Qt::transparent);
+    if (m_settings) {
+        connect(m_settings, &AppSettings::visibleSuggestionsChanged,
+            this, [this] { updateGeometry(); });
+    }
     setResizeMode(QQuickView::SizeRootObjectToView);
 
     Qt::WindowFlags flags = Qt::Tool | Qt::FramelessWindowHint;
@@ -156,8 +164,18 @@ void PickerWindow::updateGeometry()
 {
     constexpr int rowHeight = 38;
     constexpr int verticalMargin = 8;
+    const int requestedRows = m_settings
+        ? m_settings->visibleSuggestions() : AppSettings::defaultVisibleSuggestions;
+    QScreen *targetScreen = screen();
+    if (m_mode == Mode::Fallback && m_fallbackPositionValid) {
+        targetScreen = QGuiApplication::screenAt(m_fallbackGlobalPosition);
+    }
+    const int availableHeight = targetScreen ? targetScreen->availableGeometry().height() : 480;
+    const int screenRows = std::max(1, (availableHeight - 80) / rowHeight);
+    const int visibleRows = std::min({m_controller->candidates()->rowCount(),
+        requestedRows, screenRows});
     const QSize pickerSize(280,
-        verticalMargin + m_controller->candidates()->rowCount() * rowHeight);
+        verticalMargin + visibleRows * rowHeight);
     setMinimumSize(pickerSize);
     setMaximumSize(pickerSize);
     resize(pickerSize);
