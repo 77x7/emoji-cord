@@ -25,11 +25,27 @@ pkg_check_modules(XTest REQUIRED IMPORTED_TARGET xtst)
 set(INPUT_METHOD_PROTOCOL ${CMAKE_CURRENT_SOURCE_DIR}/protocols/input-method-unstable-v1.xml)
 set(PROTOCOL_HEADER ${CMAKE_CURRENT_BINARY_DIR}/input-method-unstable-v1-client-protocol.h)
 set(PROTOCOL_CODE ${CMAKE_CURRENT_BINARY_DIR}/input-method-unstable-v1-protocol.c)
+set(LAYER_SHELL_PROTOCOL ${CMAKE_CURRENT_SOURCE_DIR}/protocols/wlr-layer-shell-unstable-v1.xml)
+set(LAYER_SHELL_HEADER ${CMAKE_CURRENT_BINARY_DIR}/wlr-layer-shell-unstable-v1-client-protocol.h)
+set(LAYER_SHELL_CODE ${CMAKE_CURRENT_BINARY_DIR}/wlr-layer-shell-unstable-v1-protocol.c)
 
 add_custom_command(
     OUTPUT ${PROTOCOL_HEADER}
     COMMAND wayland-scanner client-header ${INPUT_METHOD_PROTOCOL} ${PROTOCOL_HEADER}
     DEPENDS ${INPUT_METHOD_PROTOCOL}
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${LAYER_SHELL_HEADER}
+    COMMAND wayland-scanner client-header ${LAYER_SHELL_PROTOCOL} ${LAYER_SHELL_HEADER}
+    DEPENDS ${LAYER_SHELL_PROTOCOL}
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${LAYER_SHELL_CODE}
+    COMMAND wayland-scanner private-code ${LAYER_SHELL_PROTOCOL} ${LAYER_SHELL_CODE}
+    DEPENDS ${LAYER_SHELL_PROTOCOL}
     VERBATIM
 )
 add_custom_command(
@@ -73,11 +89,15 @@ target_link_libraries(emojicord_core PUBLIC
 target_include_directories(emojicord_core PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(emoji-cord
+    src/fallbacklayershell.cpp
+    src/fallbacklayershell.h
     src/inputpanelshell.cpp
     src/inputpanelshell.h
     src/main.cpp
     src/pickerwindow.cpp
     src/pickerwindow.h
+    ${LAYER_SHELL_HEADER}
+    ${LAYER_SHELL_CODE}
 )
 target_link_libraries(emoji-cord PRIVATE
     emojicord_core

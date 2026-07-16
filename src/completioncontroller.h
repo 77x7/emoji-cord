@@ -32,6 +32,7 @@ public:
 
     CandidateModel *candidates();
     bool isVisible() const;
+    bool isFallbackMode() const;
     QString query() const;
 
     Q_INVOKABLE void moveSelection(int delta);
@@ -52,6 +53,7 @@ signals:
     void committed(const QString &emoji, const QString &alias);
     void fallbackCommitRequested(int eraseCharacters, const QString &emoji,
         const QString &alias);
+    void fallbackModeChanged();
 
 private:
     void updateMatches();

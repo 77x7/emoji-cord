@@ -32,6 +32,8 @@ signals:
     void dismissalRequested();
     void replacementCommitted(const QString &emoji, const QString &alias);
     void steamActiveChanged(bool active);
+    void targetPositionChanged(int x, int y);
+    void targetPositionInvalidated();
     void routeInvalidated();
 
 private:

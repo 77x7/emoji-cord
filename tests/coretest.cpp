@@ -263,12 +263,17 @@ void CoreTest::demoInputRefinesAndRestartsQuery()
 void CoreTest::contextRouterFailsClosed()
 {
     ContextRouter router;
+    QSignalSpy applicationChanges(&router, &ContextRouter::activeApplicationChanged);
     QCOMPARE(router.route(), ContextRouter::Route::None);
 
     router.setFallbackEnabled(true);
     router.activeWindowChanged(QStringLiteral("window-1"), QStringLiteral("org.kde.kate"),
         QStringLiteral("kate"), QStringLiteral("kate"), true);
     QCOMPARE(router.route(), ContextRouter::Route::None);
+    QCOMPARE(applicationChanges.count(), 1);
+    router.activeWindowChanged(QStringLiteral("window-1"), QStringLiteral("org.kde.kate"),
+        QStringLiteral("kate"), QStringLiteral("kate"), true);
+    QCOMPARE(applicationChanges.count(), 1);
 
     router.activeWindowChanged(QStringLiteral("window-2"),
         QStringLiteral("com.valvesoftware.Steam.desktop"), QString(), QString(), true);

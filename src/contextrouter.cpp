@@ -151,12 +151,19 @@ void ContextRouter::activeWindowChanged(const QString &windowId,
         return;
     }
 
+    const bool changed = m_windowId != windowId
+        || m_desktopFileName != desktopFileName
+        || m_resourceClass != resourceClass
+        || m_resourceName != resourceName
+        || m_windowActive != active;
     m_windowId = windowId;
     m_desktopFileName = desktopFileName;
     m_resourceClass = resourceClass;
     m_resourceName = resourceName;
     m_windowActive = active;
-    emit activeApplicationChanged();
+    if (changed) {
+        emit activeApplicationChanged();
+    }
     updateRoute();
 }
 

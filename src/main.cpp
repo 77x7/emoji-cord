@@ -124,6 +124,23 @@ int main(int argc, char *argv[])
         QTextStream(stderr) << "Emoji-cord: " << error << '\n';
         return 1;
     }
+    std::unique_ptr<PickerWindow> fallbackPicker;
+    if (!demoMode && xwaylandFallback.isAvailable()) {
+        fallbackPicker = std::make_unique<PickerWindow>(&controller, nullptr,
+            PickerWindow::Mode::Fallback);
+        if (!fallbackPicker->initialize(&error)) {
+            QTextStream(stderr) << "Emoji-cord: fallback picker unavailable: "
+                                << error << '\n';
+            fallbackPicker.reset();
+        } else {
+            QObject::connect(&xwaylandFallback, &XWaylandFallback::targetPositionChanged,
+                fallbackPicker.get(), [window = fallbackPicker.get()](int x, int y) {
+                    window->setFallbackPosition(QPoint(x, y));
+                });
+            QObject::connect(&xwaylandFallback, &XWaylandFallback::targetPositionInvalidated,
+                fallbackPicker.get(), &PickerWindow::clearFallbackPosition);
+        }
+    }
     if (demoMode) {
         QObject::connect(&controller, &CompletionController::visibleChanged, &application,
             [&controller] {

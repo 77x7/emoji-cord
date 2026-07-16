@@ -164,10 +164,12 @@ struct XWaylandFallback::Private
             targetY = lastClickY;
             targetPointValid = true;
             targetWindow = activeWindow;
+            emit q->targetPositionChanged(targetX + 8, targetY + 24);
             return;
         }
         targetPointValid = false;
         targetWindow = None;
+        emit q->targetPositionInvalidated();
     }
 
     void processRawButton(const XIRawEvent *raw)

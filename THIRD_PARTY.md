@@ -25,6 +25,16 @@ preserving the wire interface defined by Wayland's historical
 The complete release vocabulary will be generated from pinned gemoji and
 Unicode/CLDR sources and will include a machine-generated provenance report.
 
+## Layer-shell protocol
+
+`protocols/wlr-layer-shell-unstable-v1.xml` is a compact wire-compatible
+description of the wlr layer-shell protocol used by the separate Steam fallback
+picker.
+
+- Copyright 2017 Drew DeVault
+- License: MIT
+- Source: https://gitlab.freedesktop.org/wlroots/wlr-protocols
+
 ## Runtime and build dependencies
 
 Emoji-cord dynamically links Qt 6, Qt Wayland Client, Wayland Client,

@@ -162,6 +162,7 @@ void CompletionController::setFallbackMode(bool enabled)
         return;
     }
     m_fallbackMode = enabled;
+    emit fallbackModeChanged();
     reset();
 }
 
@@ -173,6 +174,11 @@ CandidateModel *CompletionController::candidates()
 bool CompletionController::isVisible() const
 {
     return m_visible;
+}
+
+bool CompletionController::isFallbackMode() const
+{
+    return m_fallbackMode;
 }
 
 QString CompletionController::query() const

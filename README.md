@@ -29,8 +29,9 @@ bundled catalog remains a small licensed fixture for clean builds. Evdev,
 uinput, and normal-clipboard fallback experiments were removed after proving
 too disruptive. Steam client build `1782866176` is supported through a separate
 XWayland compatibility backend because its CEF helper creates no focused IBus
-or XIM context. Steam replacement and keyboard navigation work; reliable
-fallback picker placement at the unknown Steam caret remains open.
+or XIM context. Steam replacement and keyboard navigation work. Its separate
+layer-shell picker stays near the recorded text-field click because Steam
+exposes no caret rectangle.
 
 ## Building the development scaffold
 
@@ -213,9 +214,10 @@ Escape are grabbed so Steam cannot act on navigation keys. The whole keyboard
 is never grabbed.
 
 Steam does not expose a caret rectangle through text-input, XIM, or AT-SPI on
-the tested build. Correct fallback picker placement is therefore unresolved;
-the normal Wayland picker remains compositor-positioned at the caret and is not
-modified by this compatibility backend.
+the tested build. The fallback picker therefore uses a separate layer-shell
+surface at the recorded text-field click and does not pretend to track the
+caret. The normal Wayland picker remains compositor-positioned at the real
+caret and is not modified by this compatibility backend.
 
 ### Active application and suppression
 
@@ -371,7 +373,7 @@ prototype builds successfully.
 - Scoped fallback navigation-key grabs.
 - PRIMARY selection preservation and Unicode insertion.
 - Active-application routing and lock-screen suspension.
-- A reliable source for Steam caret geometry and separate fallback placement.
+- A reliable source for Steam caret geometry.
 
 ### Milestone 5: Distribution
 

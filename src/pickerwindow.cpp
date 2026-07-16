@@ -4,10 +4,13 @@
 #include "pickerwindow.h"
 
 #include "completioncontroller.h"
+#include "fallbacklayershell.h"
 #include "inputpanelshell.h"
 #include "waylandinputmethod.h"
 
 #include <QCursor>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QQmlContext>
 #include <QtWaylandClient/private/qwaylandwindow_p.h>
 
@@ -32,23 +35,53 @@ PickerWindow::PickerWindow(CompletionController *controller,
 
     connect(m_controller, &CompletionController::visibleChanged, this, [this] {
         updateGeometry();
-        if (m_controller->isVisible()) {
-            if (m_mode != Mode::InputPanel) {
-                setPosition(QCursor::pos() + QPoint(16, 18));
-            }
-            show();
-            if (m_mode == Mode::Demo) {
-                requestActivate();
-            }
-        } else {
-            hide();
-        }
+        updateVisibility();
     });
+    connect(m_controller, &CompletionController::fallbackModeChanged,
+        this, &PickerWindow::updateVisibility);
     connect(m_controller->candidates(), &QAbstractItemModel::modelReset,
         this, &PickerWindow::updateGeometry);
 }
 
-PickerWindow::~PickerWindow() = default;
+PickerWindow::~PickerWindow()
+{
+    destroy();
+}
+
+void PickerWindow::setFallbackPosition(const QPoint &globalPosition)
+{
+    if (m_mode != Mode::Fallback || !m_fallbackShellIntegration) {
+        return;
+    }
+    m_fallbackGlobalPosition = globalPosition;
+    m_fallbackPositionValid = true;
+    updateFallbackLayerPosition();
+    updateVisibility();
+}
+
+void PickerWindow::clearFallbackPosition()
+{
+    if (m_mode != Mode::Fallback) {
+        return;
+    }
+    m_fallbackPositionValid = false;
+    updateVisibility();
+}
+
+void PickerWindow::updateFallbackLayerPosition()
+{
+    if (!m_fallbackPositionValid || !m_fallbackShellIntegration) {
+        return;
+    }
+    QScreen *screen = QGuiApplication::screenAt(m_fallbackGlobalPosition);
+    const QRect screenGeometry = screen ? screen->geometry() : QRect();
+    QPoint localPosition = m_fallbackGlobalPosition - screenGeometry.topLeft();
+    localPosition.setX(std::clamp(localPosition.x(), 0,
+        std::max(0, screenGeometry.width() - width())));
+    localPosition.setY(std::clamp(localPosition.y(), 0,
+        std::max(0, screenGeometry.height() - height())));
+    m_fallbackShellIntegration->setPosition(localPosition);
+}
 
 bool PickerWindow::initialize(QString *error)
 {
@@ -61,7 +94,7 @@ bool PickerWindow::initialize(QString *error)
     }
 
     updateGeometry();
-    if (m_mode != Mode::InputPanel) {
+    if (m_mode == Mode::Demo) {
         if (error) {
             error->clear();
         }
@@ -77,18 +110,46 @@ bool PickerWindow::initialize(QString *error)
         return false;
     }
 
-    m_shellIntegration = std::make_unique<InputPanelShellIntegration>(m_inputMethod);
-    if (!m_shellIntegration->initialize(waylandWindow->display())) {
+    if (m_mode == Mode::InputPanel) {
+        m_shellIntegration = std::make_unique<InputPanelShellIntegration>(m_inputMethod);
+    } else {
+        m_fallbackShellIntegration = std::make_unique<FallbackLayerShellIntegration>();
+    }
+    QtWaylandClient::QWaylandShellIntegration *integration = m_mode == Mode::InputPanel
+        ? static_cast<QtWaylandClient::QWaylandShellIntegration *>(m_shellIntegration.get())
+        : static_cast<QtWaylandClient::QWaylandShellIntegration *>(m_fallbackShellIntegration.get());
+    if (!integration->initialize(waylandWindow->display())) {
         if (error) {
-            *error = QStringLiteral("KWin input-panel protocol is unavailable");
+            *error = m_mode == Mode::InputPanel
+                ? QStringLiteral("KWin input-panel protocol is unavailable")
+                : QStringLiteral("KWin layer-shell protocol is unavailable");
         }
         return false;
     }
-    waylandWindow->setShellIntegration(m_shellIntegration.get());
+    waylandWindow->setShellIntegration(integration);
     if (error) {
         error->clear();
     }
     return true;
+}
+
+void PickerWindow::updateVisibility()
+{
+    const bool routeMatches = m_mode == Mode::Demo
+        || (m_mode == Mode::InputPanel && !m_controller->isFallbackMode())
+        || (m_mode == Mode::Fallback && m_controller->isFallbackMode()
+            && m_fallbackPositionValid);
+    if (m_controller->isVisible() && routeMatches) {
+        if (m_mode == Mode::Demo) {
+            setPosition(QCursor::pos() + QPoint(16, 18));
+        }
+        show();
+        if (m_mode == Mode::Demo) {
+            requestActivate();
+        }
+    } else {
+        hide();
+    }
 }
 
 void PickerWindow::updateGeometry()
@@ -100,4 +161,7 @@ void PickerWindow::updateGeometry()
     setMinimumSize(pickerSize);
     setMaximumSize(pickerSize);
     resize(pickerSize);
+    if (m_mode == Mode::Fallback) {
+        updateFallbackLayerPosition();
+    }
 }
