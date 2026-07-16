@@ -24,6 +24,8 @@ CompletionController::CompletionController(WaylandInputMethod *inputMethod, QObj
             &CompletionController::reset);
         connect(m_inputMethod, &WaylandInputMethod::resetRequested,
             this, &CompletionController::reset);
+        connect(m_inputMethod, &WaylandInputMethod::surroundingTextChanged,
+            this, &CompletionController::restoreFromSurroundingText);
         connect(m_inputMethod, &WaylandInputMethod::sensitiveChanged, this, [this](bool sensitive) {
             if (sensitive) {
                 reset();
@@ -339,6 +341,39 @@ void CompletionController::updateMatches()
     const QVector<EmojiMatch> matches = EmojiMatcher::match(m_catalog, m_query.query(), m_usage, 8);
     m_candidates.setMatches(matches, 8);
     setVisible(!matches.isEmpty());
+}
+
+void CompletionController::restoreFromSurroundingText(
+    const QString &text, std::uint32_t cursor, std::uint32_t anchor)
+{
+    if (m_fallbackMode || (m_inputMethod && m_inputMethod->isSensitive())) {
+        return;
+    }
+
+    const QByteArray utf8 = text.toUtf8();
+    if (cursor != anchor || cursor > std::uint32_t(utf8.size())) {
+        reset();
+        return;
+    }
+
+    const QString beforeCursor = QString::fromUtf8(utf8.constData(), int(cursor));
+    const qsizetype colon = beforeCursor.lastIndexOf(u':');
+    const QString suffix = colon >= 0 ? beforeCursor.sliced(colon + 1) : QString();
+    if (colon < 0 || suffix.size() > 64) {
+        reset();
+        return;
+    }
+
+    m_query.cancel();
+    m_query.input(u':');
+    for (const QChar character : suffix) {
+        if (m_query.input(character) != QueryState::Change::Updated) {
+            reset();
+            return;
+        }
+    }
+    emit queryChanged();
+    updateMatches();
 }
 
 void CompletionController::reset()

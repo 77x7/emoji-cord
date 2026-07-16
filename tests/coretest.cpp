@@ -32,6 +32,7 @@ private slots:
     void controllerBuildsVerticalCandidates();
     void controllerConsumesNavigationAndExactCompletion();
     void controllerRetainsConsumedReleaseAcrossSelection();
+    void controllerRestoresQueryFromSurroundingText();
     void demoInputRefinesAndRestartsQuery();
     void contextRouterFailsClosed();
     void contextRouterPrioritizesDirectInput();
@@ -239,6 +240,27 @@ void CoreTest::controllerRetainsConsumedReleaseAcrossSelection()
     down.pressed = false;
     QVERIFY(controller.handleKey(down));
     QVERIFY(!controller.handleKey(down));
+}
+
+void CoreTest::controllerRestoresQueryFromSurroundingText()
+{
+    WaylandInputMethod inputMethod;
+    CompletionController controller(&inputMethod);
+    QString error;
+    QVERIFY2(controller.loadCatalog(catalogJson, &error), qPrintable(error));
+
+    const QString text = QStringLiteral("emoji 💀 :sk");
+    const std::uint32_t cursor = std::uint32_t(text.toUtf8().size());
+    emit inputMethod.resetRequested();
+    emit inputMethod.surroundingTextChanged(text, cursor, cursor);
+
+    QCOMPARE(controller.query(), QStringLiteral("sk"));
+    QVERIFY(controller.isVisible());
+    QCOMPARE(controller.candidates()->rowCount(), 3);
+
+    emit inputMethod.surroundingTextChanged(text, cursor, cursor - 1);
+    QVERIFY(controller.query().isEmpty());
+    QVERIFY(!controller.isVisible());
 }
 
 void CoreTest::demoInputRefinesAndRestartsQuery()

@@ -58,6 +58,8 @@ signals:
 private:
     void updateMatches();
     void commitEntry(const EmojiEntry *entry);
+    void restoreFromSurroundingText(const QString &text, std::uint32_t cursor,
+        std::uint32_t anchor);
     void reset();
     void setVisible(bool visible);
 

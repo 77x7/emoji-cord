@@ -60,6 +60,7 @@ signals:
     void contextActivated();
     void contextDeactivated();
     void resetRequested();
+    void surroundingTextChanged(const QString &text, std::uint32_t cursor, std::uint32_t anchor);
     void sensitiveChanged(bool sensitive);
 
 private:

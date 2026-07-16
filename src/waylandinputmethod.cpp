@@ -111,9 +111,11 @@ struct WaylandInputMethod::Private {
         }
     }
 
-    static void surroundingText(void *, zwp_input_method_context_v1 *, const char *,
-        std::uint32_t, std::uint32_t)
+    static void surroundingText(void *data, zwp_input_method_context_v1 *, const char *text,
+        std::uint32_t cursor, std::uint32_t anchor)
     {
+        emit static_cast<Private *>(data)->owner->surroundingTextChanged(
+            QString::fromUtf8(text), cursor, anchor);
     }
     static void reset(void *data, zwp_input_method_context_v1 *)
     {
