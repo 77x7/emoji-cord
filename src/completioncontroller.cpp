@@ -5,6 +5,7 @@
 
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include <algorithm>
 #include <utility>
 
 CompletionController::CompletionController(WaylandInputMethod *inputMethod, QObject *parent)
@@ -195,11 +196,7 @@ void CompletionController::moveSelection(int delta)
         return;
     }
     int next = m_candidates.selectedIndex() + delta;
-    if (next < 0) {
-        next = count - 1;
-    } else if (next >= count) {
-        next = 0;
-    }
+    next = std::clamp(next, 0, count - 1);
     m_candidates.setSelectedIndex(next);
 }
 

@@ -163,33 +163,59 @@ struct XWaylandFallback::Private
             targetX = lastClickX;
             targetY = lastClickY;
             targetPointValid = true;
+            targetFromClick = true;
             targetWindow = activeWindow;
             emit q->targetPositionChanged(targetX + 8, targetY + 24);
             return;
-        }
-        targetPointValid = false;
-        targetWindow = None;
-        emit q->targetPositionInvalidated();
-    }
-
-    void processRawButton(const XIRawEvent *raw)
-    {
-        Window activeWindow = None;
-        if (!enabled || raw->evtype != XI_RawButtonPress || raw->detail != 1
-            || !activeSteamWindow(&activeWindow)) {
-            return;
-        }
-        if (trackingQuery) {
-            resetTracking();
-            emit q->routeInvalidated();
         }
         Window rootReturn = None;
         Window childReturn = None;
         int windowX = 0;
         int windowY = 0;
         unsigned int mask = 0;
-        lastClickValid = XQueryPointer(display, root, &rootReturn, &childReturn,
-            &lastClickX, &lastClickY, &windowX, &windowY, &mask);
+        if (activeSteamWindow(&activeWindow)
+            && XQueryPointer(display, root, &rootReturn, &childReturn,
+                &targetX, &targetY, &windowX, &windowY, &mask)) {
+            targetPointValid = true;
+            targetFromClick = false;
+            targetWindow = activeWindow;
+            emit q->targetPositionChanged(targetX + 8, targetY + 24);
+        } else {
+            targetPointValid = false;
+            targetWindow = None;
+            emit q->targetPositionInvalidated();
+        }
+    }
+
+    void processRawButton(const XIRawEvent *raw)
+    {
+        if (raw->evtype != XI_RawButtonPress || raw->detail != 1) {
+            return;
+        }
+        Window rootReturn = None;
+        Window childReturn = None;
+        int rootX = 0;
+        int rootY = 0;
+        int windowX = 0;
+        int windowY = 0;
+        unsigned int mask = 0;
+        const bool pointerValid = XQueryPointer(display, root, &rootReturn, &childReturn,
+            &rootX, &rootY, &windowX, &windowY, &mask);
+        if (pointerValid) {
+            emit q->pointerClicked(QPoint(rootX, rootY));
+        }
+
+        Window activeWindow = None;
+        if (!enabled || !activeSteamWindow(&activeWindow)) {
+            return;
+        }
+        if (trackingQuery) {
+            resetTracking();
+            emit q->routeInvalidated();
+        }
+        lastClickValid = pointerValid;
+        lastClickX = rootX;
+        lastClickY = rootY;
         lastClickWindow = activeWindow;
     }
 
@@ -334,19 +360,28 @@ struct XWaylandFallback::Private
                 XTestFakeKeyEvent(display, backspace, False, CurrentTime);
             }
 
-            Window rootReturn = None;
-            Window childReturn = None;
-            int originalX = 0;
-            int originalY = 0;
-            int windowX = 0;
-            int windowY = 0;
-            unsigned int mask = 0;
-            XQueryPointer(display, root, &rootReturn, &childReturn,
-                &originalX, &originalY, &windowX, &windowY, &mask);
-            XTestFakeMotionEvent(display, -1, targetX, targetY, CurrentTime);
-            XTestFakeButtonEvent(display, 2, True, CurrentTime);
-            XTestFakeButtonEvent(display, 2, False, CurrentTime);
-            XTestFakeMotionEvent(display, -1, originalX, originalY, CurrentTime);
+            if (targetFromClick) {
+                Window rootReturn = None;
+                Window childReturn = None;
+                int originalX = 0;
+                int originalY = 0;
+                int windowX = 0;
+                int windowY = 0;
+                unsigned int mask = 0;
+                XQueryPointer(display, root, &rootReturn, &childReturn,
+                    &originalX, &originalY, &windowX, &windowY, &mask);
+                XTestFakeMotionEvent(display, -1, targetX, targetY, CurrentTime);
+                XTestFakeButtonEvent(display, 2, True, CurrentTime);
+                XTestFakeButtonEvent(display, 2, False, CurrentTime);
+                XTestFakeMotionEvent(display, -1, originalX, originalY, CurrentTime);
+            } else {
+                const KeyCode shift = XKeysymToKeycode(display, XK_Shift_L);
+                const KeyCode insert = XKeysymToKeycode(display, XK_Insert);
+                XTestFakeKeyEvent(display, shift, True, CurrentTime);
+                XTestFakeKeyEvent(display, insert, True, CurrentTime);
+                XTestFakeKeyEvent(display, insert, False, CurrentTime);
+                XTestFakeKeyEvent(display, shift, False, CurrentTime);
+            }
             XFlush(display);
 
             QTimer::singleShot(500, q, [this] {
@@ -464,6 +499,7 @@ struct XWaylandFallback::Private
     bool enabled = false;
     bool trackingQuery = false;
     bool targetPointValid = false;
+    bool targetFromClick = false;
     bool insertionPending = false;
     bool awaitingPreviousSelection = false;
     bool hadPreviousSelection = false;
@@ -586,6 +622,26 @@ bool XWaylandFallback::isAvailable() const
 bool XWaylandFallback::isSteamActive() const
 {
     return d->activeSteamWindow();
+}
+
+bool XWaylandFallback::currentPointerPosition(QPoint *position) const
+{
+    if (!d->display || !position) {
+        return false;
+    }
+    Window rootReturn = None;
+    Window childReturn = None;
+    int rootX = 0;
+    int rootY = 0;
+    int windowX = 0;
+    int windowY = 0;
+    unsigned int mask = 0;
+    if (!XQueryPointer(d->display, d->root, &rootReturn, &childReturn,
+            &rootX, &rootY, &windowX, &windowY, &mask)) {
+        return false;
+    }
+    *position = QPoint(rootX, rootY);
+    return true;
 }
 
 void XWaylandFallback::replaceShortcode(int eraseCharacters, const QString &emoji,

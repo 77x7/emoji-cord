@@ -181,9 +181,9 @@ void CoreTest::controllerBuildsVerticalCandidates()
     QCOMPARE(controller.candidates()->selectedIndex(), 0);
 
     controller.moveSelection(-1);
-    QCOMPARE(controller.candidates()->selectedIndex(), 2);
-    controller.moveSelection(1);
     QCOMPARE(controller.candidates()->selectedIndex(), 0);
+    controller.moveSelection(1);
+    QCOMPARE(controller.candidates()->selectedIndex(), 1);
     controller.dismiss();
     QVERIFY(!controller.isVisible());
 }
@@ -416,14 +416,57 @@ void CoreTest::settingsPersistAndValidateVisibleSuggestions()
 
     AppSettings settings(path);
     QCOMPARE(settings.visibleSuggestions(), AppSettings::defaultVisibleSuggestions);
+    QCOMPARE(settings.backgroundOpacity(), AppSettings::automaticBackgroundOpacity);
+    QVERIFY(settings.blurEnabled());
+    QVERIFY(settings.contrastEnabled());
+    QVERIFY(!settings.dynamicWidth());
+    QCOMPARE(settings.pickerWidth(), AppSettings::defaultPickerWidth);
+    QCOMPARE(settings.maximumPickerWidth(), AppSettings::defaultMaximumPickerWidth);
     QVERIFY(settings.updateVisibleSuggestions(17));
+    QVERIFY(settings.updateBackgroundOpacity(65));
+    QVERIFY(settings.updateBlurEnabled(false));
+    QVERIFY(settings.updateContrastEnabled(false));
+    QVERIFY(settings.updateDynamicWidth(true));
+    QVERIFY(settings.updatePickerWidth(360));
+    QVERIFY(settings.updateMaximumPickerWidth(640));
     QCOMPARE(settings.visibleSuggestions(), 17);
+    QCOMPARE(settings.backgroundOpacity(), 65);
+    QVERIFY(!settings.blurEnabled());
+    QVERIFY(!settings.contrastEnabled());
+    QVERIFY(settings.dynamicWidth());
+    QCOMPARE(settings.pickerWidth(), 360);
+    QCOMPARE(settings.maximumPickerWidth(), 640);
     QVERIFY(!settings.updateVisibleSuggestions(0));
+    QVERIFY(!settings.updateBackgroundOpacity(19));
+    QVERIFY(!settings.updatePickerWidth(219));
+    QVERIFY(!settings.updateMaximumPickerWidth(2001));
     QCOMPARE(settings.visibleSuggestions(), 17);
+    QCOMPARE(settings.backgroundOpacity(), 65);
 
     AppSettings restored(path);
     QCOMPARE(restored.visibleSuggestions(), 17);
+    QCOMPARE(restored.backgroundOpacity(), 65);
+    QVERIFY(!restored.blurEnabled());
+    QVERIFY(!restored.contrastEnabled());
+    QVERIFY(restored.dynamicWidth());
+    QCOMPARE(restored.pickerWidth(), 360);
+    QCOMPARE(restored.maximumPickerWidth(), 640);
     QVERIFY(restored.error().isEmpty());
+
+    QVERIFY(restored.updateBackgroundOpacity(0));
+    QCOMPARE(restored.backgroundOpacity(), AppSettings::automaticBackgroundOpacity);
+    QVERIFY(restored.updateBackgroundOpacity(20));
+    QVERIFY(restored.updateBackgroundOpacity(100));
+    QVERIFY(restored.updateBackgroundOpacity(70));
+
+    AppSettings concurrent(path);
+    QVERIFY(concurrent.updateBlurEnabled(true));
+    AppSettings merged(path);
+    QCOMPARE(merged.backgroundOpacity(), 70);
+    QVERIFY(merged.blurEnabled());
+    QVERIFY(merged.applyBackgroundOpacity(80));
+    AppSettings unchangedOnDisk(path);
+    QCOMPARE(unchangedOnDisk.backgroundOpacity(), 70);
 
     QFile malformed(path);
     QVERIFY(malformed.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -432,6 +475,15 @@ void CoreTest::settingsPersistAndValidateVisibleSuggestions()
     AppSettings rejected(path);
     QCOMPARE(rejected.visibleSuggestions(), AppSettings::defaultVisibleSuggestions);
     QVERIFY(!rejected.error().isEmpty());
+
+    const QString appearanceFirstPath = directory.filePath(
+        QStringLiteral("appearance-first/settings.json"));
+    AppSettings appearanceFirst(appearanceFirstPath);
+    QVERIFY(appearanceFirst.updateBackgroundOpacity(55));
+    AppSettings appearanceFirstRestored(appearanceFirstPath);
+    QCOMPARE(appearanceFirstRestored.visibleSuggestions(),
+        AppSettings::defaultVisibleSuggestions);
+    QCOMPARE(appearanceFirstRestored.backgroundOpacity(), 55);
 }
 
 void CoreTest::usageRoundTripsAtomically()

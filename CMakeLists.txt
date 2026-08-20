@@ -13,6 +13,7 @@ set(CMAKE_AUTOMOC ON)
 include(CTest)
 
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core DBus Gui Quick QuickControls2 Qml WaylandClient)
+find_package(KF6WindowSystem REQUIRED)
 find_package(Qt6CorePrivate 6.6 REQUIRED)
 find_package(Qt6GuiPrivate 6.6 REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -91,6 +92,8 @@ target_link_libraries(emojicord_core PUBLIC
 target_include_directories(emojicord_core PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(emoji-cord
+    src/effectcapabilities.cpp
+    src/effectcapabilities.h
     src/fallbacklayershell.cpp
     src/fallbacklayershell.h
     src/inputpanelshell.cpp
@@ -110,6 +113,7 @@ target_link_libraries(emoji-cord PRIVATE
     Qt6::QuickControls2
     Qt6::Qml
     Qt6::WaylandClient
+    KF6::WindowSystem
 )
 target_include_directories(emoji-cord PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

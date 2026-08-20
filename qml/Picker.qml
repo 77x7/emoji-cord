@@ -6,7 +6,12 @@ import QtQuick
 Rectangle {
     id: root
 
-    color: palette.window
+    readonly property real backgroundAlpha: appSettings.backgroundOpacity === 0
+        ? (appSettings.blurEnabled && effectCapabilities.blurAvailable ? 0.85 : 1.0)
+        : appSettings.backgroundOpacity / 100
+
+    color: Qt.rgba(palette.window.r, palette.window.g, palette.window.b,
+        backgroundAlpha)
     border.color: Qt.alpha(palette.windowText, 0.20)
     border.width: 1
     radius: 8
@@ -49,7 +54,12 @@ Rectangle {
         model: completionController.candidates
         spacing: 0
         interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
         currentIndex: completionController.candidates.selectedIndex
+        preferredHighlightBegin: 38
+        preferredHighlightEnd: height - 38
+        highlightRangeMode: ListView.ApplyRange
+        highlightMoveDuration: 80
 
         delegate: Rectangle {
             id: row
@@ -81,11 +91,13 @@ Rectangle {
                 }
 
                 Text {
+                    width: parent.width - 36
                     height: parent.height
                     text: row.alias
                     color: row.selected ? palette.highlightedText : palette.windowText
                     font.pixelSize: 13
                     font.weight: row.selected ? Font.DemiBold : Font.Normal
+                    elide: Text.ElideRight
                     verticalAlignment: Text.AlignVCenter
                 }
             }

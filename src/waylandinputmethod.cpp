@@ -41,10 +41,12 @@ struct WaylandInputMethod::Private {
     std::uint32_t repeatTime = 0;
     std::int32_t repeatRate = 0;
     std::int32_t repeatDelay = 0;
+    bool repeatConsumed = false;
 
     void clearKeyboard()
     {
         repeatTimer.stop();
+        repeatConsumed = false;
         if (keyboard) {
             wl_keyboard_destroy(keyboard);
             keyboard = nullptr;
@@ -214,10 +216,12 @@ struct WaylandInputMethod::Private {
             self->repeatEvent = event;
             self->repeatEvent.autoRepeat = true;
             self->repeatTime = time;
+            self->repeatConsumed = handled;
             self->repeatTimer.start(self->repeatDelay);
         } else if (!pressed && self->repeatEvent.keycode == key) {
             self->repeatTimer.stop();
             self->repeatEvent = {};
+            self->repeatConsumed = false;
         }
     }
 
@@ -251,7 +255,10 @@ struct WaylandInputMethod::Private {
             return;
         }
         const bool handled = handler && handler(repeatEvent);
-        if (!handled) {
+        if (handled) {
+            repeatConsumed = true;
+        }
+        if (!repeatConsumed) {
             zwp_input_method_context_v1_keysym(context, commitSerial, repeatTime++,
                 repeatEvent.keysym, WL_KEYBOARD_KEY_STATE_PRESSED, 0);
             zwp_input_method_context_v1_keysym(context, commitSerial, repeatTime++,

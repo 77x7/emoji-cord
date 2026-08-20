@@ -9,19 +9,28 @@ Rectangle {
     id: root
 
     property string inputError: ""
+    readonly property int automaticOpacity: effectCapabilities.blurAvailable
+        && appSettings.blurEnabled
+        ? 85 : 100
 
-    width: 520
-    height: 300
+    width: 680
+    height: 580
     color: palette.window
 
     SystemPalette {
         id: palette
     }
 
-    ColumnLayout {
+    ScrollView {
+        id: page
+
         anchors.fill: parent
-        anchors.margins: 32
-        spacing: 24
+        anchors.margins: 24
+        clip: true
+
+        ColumnLayout {
+            width: page.availableWidth
+            spacing: 24
 
         ColumnLayout {
             Layout.fillWidth: true
@@ -140,6 +149,269 @@ Rectangle {
             }
         }
 
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: appearanceLayout.implicitHeight + 32
+            radius: 10
+            color: Qt.alpha(palette.windowText, 0.055)
+            border.color: Qt.alpha(palette.windowText, 0.12)
+
+            ColumnLayout {
+                id: appearanceLayout
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: 16
+                spacing: 12
+
+                Label {
+                    text: qsTr("Appearance")
+                    color: palette.windowText
+                    font.weight: Font.DemiBold
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("Background opacity")
+                        color: palette.windowText
+                    }
+
+                    CheckBox {
+                        id: automaticOpacity
+                        text: qsTr("Automatic")
+                        checked: appSettings.backgroundOpacity === 0
+                        onClicked: appSettings.updateBackgroundOpacity(checked
+                            ? 0 : root.automaticOpacity)
+                    }
+
+                    Slider {
+                        id: opacitySlider
+
+                        Layout.preferredWidth: 170
+                        from: 20
+                        to: 100
+                        stepSize: 1
+                        enabled: !automaticOpacity.checked
+                        value: appSettings.backgroundOpacity === 0
+                            ? root.automaticOpacity : appSettings.backgroundOpacity
+                        onValueChanged: {
+                            if (enabled && activeFocus) {
+                                opacitySaveTimer.restart()
+                            }
+                        }
+
+                        Timer {
+                            id: opacitySaveTimer
+
+                            interval: 200
+                            onTriggered: appSettings.updateBackgroundOpacity(
+                                Math.round(opacitySlider.value))
+                        }
+                    }
+
+                    Label {
+                        Layout.preferredWidth: 42
+                        text: Math.round(opacitySlider.value) + "%"
+                        horizontalAlignment: Text.AlignRight
+                        color: palette.windowText
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Label {
+                            text: qsTr("Blur behind picker")
+                            color: palette.windowText
+                        }
+
+                        Label {
+                            text: effectCapabilities.blurAvailable
+                                ? qsTr("Rendered by KWin")
+                                : qsTr("Unavailable in the current KWin effects")
+                            color: Qt.alpha(palette.windowText, 0.60)
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    Switch {
+                        checked: appSettings.blurEnabled
+                        enabled: effectCapabilities.blurAvailable
+                        onClicked: appSettings.updateBlurEnabled(checked)
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Label {
+                            text: qsTr("Background contrast")
+                            color: palette.windowText
+                        }
+
+                        Label {
+                            text: effectCapabilities.contrastAvailable
+                                ? qsTr("Uses KWin's readability effect")
+                                : qsTr("Unavailable in the current KWin effects")
+                            color: Qt.alpha(palette.windowText, 0.60)
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    Switch {
+                        checked: appSettings.contrastEnabled
+                        enabled: effectCapabilities.contrastAvailable
+                        onClicked: appSettings.updateContrastEnabled(checked)
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: widthLayout.implicitHeight + 32
+            radius: 10
+            color: Qt.alpha(palette.windowText, 0.055)
+            border.color: Qt.alpha(palette.windowText, 0.12)
+
+            ColumnLayout {
+                id: widthLayout
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: 16
+                spacing: 12
+
+                Label {
+                    text: qsTr("Picker width")
+                    color: palette.windowText
+                    font.weight: Font.DemiBold
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("Sizing mode")
+                        color: palette.windowText
+                    }
+
+                    ComboBox {
+                        id: widthMode
+
+                        Layout.preferredWidth: 180
+                        model: [qsTr("Fixed"), qsTr("Automatic")]
+                        currentIndex: appSettings.dynamicWidth ? 1 : 0
+                        onActivated: index => {
+                            if (!appSettings.updateDynamicWidth(index === 1)) {
+                                currentIndex = appSettings.dynamicWidth ? 1 : 0
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Label {
+                            text: appSettings.dynamicWidth
+                                ? qsTr("Maximum width") : qsTr("Fixed width")
+                            color: palette.windowText
+                        }
+
+                        Label {
+                            text: appSettings.dynamicWidth
+                                ? qsTr("Fits the longest alias without exceeding this value.")
+                                : qsTr("Uses this width for every suggestion list.")
+                            color: Qt.alpha(palette.windowText, 0.60)
+                            font.pixelSize: 12
+                        }
+                    }
+
+                    TextField {
+                        id: widthValue
+
+                        Layout.preferredWidth: 130
+                        text: String(appSettings.dynamicWidth
+                            ? appSettings.maximumPickerWidth : appSettings.pickerWidth)
+                        horizontalAlignment: Text.AlignHCenter
+                        inputMethodHints: Qt.ImhDigitsOnly
+                        selectByMouse: true
+                        validator: IntValidator { bottom: 220; top: 2000 }
+
+                        function applyValue() {
+                            if (!acceptableInput) {
+                                text = String(appSettings.dynamicWidth
+                                    ? appSettings.maximumPickerWidth : appSettings.pickerWidth)
+                                return
+                            }
+                            const number = Number(text)
+                            const accepted = appSettings.dynamicWidth
+                                ? appSettings.updateMaximumPickerWidth(number)
+                                : appSettings.updatePickerWidth(number)
+                            if (!accepted) {
+                                text = String(appSettings.dynamicWidth
+                                    ? appSettings.maximumPickerWidth : appSettings.pickerWidth)
+                            }
+                        }
+
+                        onEditingFinished: applyValue()
+                        Keys.onReturnPressed: event => {
+                            applyValue()
+                            event.accepted = true
+                        }
+                        Keys.onEnterPressed: event => {
+                            applyValue()
+                            event.accepted = true
+                        }
+                    }
+
+                    Label {
+                        text: "px"
+                        color: palette.windowText
+                    }
+                }
+
+                Connections {
+                    target: appSettings
+
+                    function onDynamicWidthChanged(enabled) {
+                        widthMode.currentIndex = enabled ? 1 : 0
+                        widthValue.text = String(enabled
+                            ? appSettings.maximumPickerWidth : appSettings.pickerWidth)
+                    }
+                    function onPickerWidthChanged(value) {
+                        if (!appSettings.dynamicWidth && !widthValue.activeFocus) {
+                            widthValue.text = String(value)
+                        }
+                    }
+                    function onMaximumPickerWidthChanged(value) {
+                        if (appSettings.dynamicWidth && !widthValue.activeFocus) {
+                            widthValue.text = String(value)
+                        }
+                    }
+                }
+            }
+        }
+
         Label {
             Layout.fillWidth: true
             text: root.inputError.length > 0
@@ -154,6 +426,6 @@ Rectangle {
                 : Qt.alpha(palette.windowText, 0.62)
         }
 
-        Item { Layout.fillHeight: true }
+        }
     }
 }

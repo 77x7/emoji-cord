@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QObject>
+#include <QPoint>
 
 #include <memory>
 
@@ -20,6 +21,7 @@ public:
     void setNavigationActive(bool active);
     bool isAvailable() const;
     bool isSteamActive() const;
+    bool currentPointerPosition(QPoint *position) const;
 
 public slots:
     void replaceShortcode(int eraseCharacters, const QString &emoji, const QString &alias);
@@ -35,6 +37,7 @@ signals:
     void targetPositionChanged(int x, int y);
     void targetPositionInvalidated();
     void routeInvalidated();
+    void pointerClicked(const QPoint &position);
 
 private:
     struct Private;

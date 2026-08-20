@@ -41,6 +41,7 @@ Install the Fedora/Nobara build dependencies:
 sudo dnf install cmake ninja-build gcc-c++ \
   qt6-qtbase-devel qt6-qtbase-private-devel \
   qt6-qtdeclarative-devel qt6-qtwayland-devel \
+  kf6-kwindowsystem-devel \
   wayland-devel libxkbcommon-devel libX11-devel libXi-devel libXtst-devel
 ```
 
@@ -108,6 +109,19 @@ still loaded and remains available by scrolling. It is stored in
 method is running. The viewport is constrained further when necessary to fit
 the current screen.
 
+The appearance section controls picker background opacity, KWin blur-behind,
+and KWin background contrast. Automatic opacity uses 85% when KWin's blur
+effect is available and enabled for the picker, otherwise 100%. Explicit
+opacity values range from 20% to 100%. Blur and contrast are requested through
+KWindowEffects, so KWin remains responsible for rendering them and its global
+effect availability is respected. These settings apply to both native Wayland
+and Steam fallback pickers, not to the settings window.
+
+Picker width defaults to the original fixed 280 pixels. **Automatic** mode
+measures the matching aliases and grows only as far as the configured maximum
+width. Fixed and maximum widths accept values from 220 to 2,000 pixels, with
+the final popup always constrained to the active screen.
+
 Switch back to **Fcitx 5** in the same settings page after testing. If keyboard
 input is unusable, switch to a TTY and restore the configured input method:
 
@@ -161,6 +175,11 @@ default. Each row contains an emoji preview and its canonical `:alias:`. The
 selected row uses the current KDE selection and accent colors. Additional
 results remain available by scrolling, and the window does not take keyboard
 focus from the target application.
+
+KRunner advertises keyboard repeat as disabled to input methods while handling
+held arrow keys through its own result list. Emoji-cord therefore supports
+discrete Up/Down presses in KRunner, but held-arrow navigation is not supported
+there. Normal text fields use the compositor's repeat rate.
 
 ## Matching and ranking
 

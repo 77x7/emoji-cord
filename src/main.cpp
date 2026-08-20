@@ -4,6 +4,7 @@
 #include "appsettings.h"
 #include "completioncontroller.h"
 #include "contextrouter.h"
+#include "effectcapabilities.h"
 #include "pickerwindow.h"
 #include "waylandinputmethod.h"
 #include "xwaylandfallback.h"
@@ -22,6 +23,7 @@
 #include <QSize>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QTimer>
 #include <QtGui/qguiapplication_platform.h>
 
 int main(int argc, char *argv[])
@@ -44,10 +46,11 @@ int main(int argc, char *argv[])
     parser.process(application);
 
     AppSettings settings(AppSettings::defaultPath());
+    EffectCapabilities effectCapabilities;
     if (parser.isSet(settingsOption)) {
         QGuiApplication::setQuitOnLastWindowClosed(true);
-        QObject::connect(&settings, &AppSettings::visibleSuggestionsChanged,
-            &application, [&settings](int value) {
+        const auto updateRunningInstance = [&settings](const QString &method,
+                                               const QVariant &value) {
                 QDBusInterface remote(QStringLiteral("io.github.puzll.EmojiCord"),
                     QStringLiteral("/Settings"),
                     QStringLiteral("io.github.puzll.EmojiCord.Settings"),
@@ -58,24 +61,54 @@ int main(int argc, char *argv[])
                     return;
                 }
                 const QDBusReply<bool> reply = remote.call(
-                    QStringLiteral("updateVisibleSuggestions"), value);
+                    method, value);
                 settings.setStatus(reply.isValid() && reply.value()
                         ? QStringLiteral("Saved and applied.")
                         : QStringLiteral(
                             "Saved, but the running input method could not be updated."));
+            };
+        QObject::connect(&settings, &AppSettings::visibleSuggestionsChanged,
+            &application, [updateRunningInstance](int value) {
+                updateRunningInstance(QStringLiteral("applyVisibleSuggestions"), value);
+            });
+        QObject::connect(&settings, &AppSettings::backgroundOpacityChanged,
+            &application, [updateRunningInstance](int value) {
+                updateRunningInstance(QStringLiteral("applyBackgroundOpacity"), value);
+            });
+        QObject::connect(&settings, &AppSettings::blurEnabledChanged,
+            &application, [updateRunningInstance](bool enabled) {
+                updateRunningInstance(QStringLiteral("applyBlurEnabled"), enabled);
+            });
+        QObject::connect(&settings, &AppSettings::contrastEnabledChanged,
+            &application, [updateRunningInstance](bool enabled) {
+                updateRunningInstance(QStringLiteral("applyContrastEnabled"), enabled);
+            });
+        QObject::connect(&settings, &AppSettings::dynamicWidthChanged,
+            &application, [updateRunningInstance](bool enabled) {
+                updateRunningInstance(QStringLiteral("applyDynamicWidth"), enabled);
+            });
+        QObject::connect(&settings, &AppSettings::pickerWidthChanged,
+            &application, [updateRunningInstance](int value) {
+                updateRunningInstance(QStringLiteral("applyPickerWidth"), value);
+            });
+        QObject::connect(&settings, &AppSettings::maximumPickerWidthChanged,
+            &application, [updateRunningInstance](int value) {
+                updateRunningInstance(QStringLiteral("applyMaximumPickerWidth"), value);
             });
 
         QQuickView view;
         view.setTitle(QStringLiteral("Emoji-cord Settings"));
         view.setResizeMode(QQuickView::SizeRootObjectToView);
         view.rootContext()->setContextProperty(QStringLiteral("appSettings"), &settings);
+        view.rootContext()->setContextProperty(QStringLiteral("effectCapabilities"),
+            &effectCapabilities);
         view.setSource(QUrl(QStringLiteral("qrc:/qml/Settings.qml")));
         if (view.status() == QQuickView::Error) {
             QTextStream(stderr) << "Emoji-cord: could not load the settings window\n";
             return 1;
         }
-        view.setMinimumSize(QSize(500, 300));
-        view.resize(560, 340);
+        view.setMinimumSize(QSize(500, 360));
+        view.resize(680, 660);
         view.show();
         return application.exec();
     }
@@ -96,6 +129,10 @@ int main(int argc, char *argv[])
     ContextRouter contextRouter;
     XWaylandFallback xwaylandFallback;
     CompletionController controller(demoMode ? nullptr : &inputMethod);
+    QTimer pointerFallbackTimer;
+    pointerFallbackTimer.setInterval(100);
+    QPoint lastNoCaretClick;
+    bool lastNoCaretClickValid = false;
     QString error;
     const QByteArray catalogData = catalogFile.readAll();
     const bool catalogLoaded = useLocalCatalog
@@ -183,28 +220,91 @@ int main(int argc, char *argv[])
         }
     }
 
-    PickerWindow picker(&controller, &settings, demoMode ? nullptr : &inputMethod,
+    PickerWindow picker(&controller, &settings, &effectCapabilities,
+        demoMode ? nullptr : &inputMethod,
         demoMode ? PickerWindow::Mode::Demo : PickerWindow::Mode::InputPanel);
     if (!picker.initialize(&error)) {
         QTextStream(stderr) << "Emoji-cord: " << error << '\n';
         return 1;
     }
     std::unique_ptr<PickerWindow> fallbackPicker;
-    if (!demoMode && xwaylandFallback.isAvailable()) {
-        fallbackPicker = std::make_unique<PickerWindow>(&controller, &settings, nullptr,
-            PickerWindow::Mode::Fallback);
+    if (!demoMode) {
+        fallbackPicker = std::make_unique<PickerWindow>(&controller, &settings,
+            &effectCapabilities, nullptr, PickerWindow::Mode::Fallback);
         if (!fallbackPicker->initialize(&error)) {
             QTextStream(stderr) << "Emoji-cord: fallback picker unavailable: "
                                 << error << '\n';
             fallbackPicker.reset();
-        } else {
+        } else if (xwaylandFallback.isAvailable()) {
             QObject::connect(&xwaylandFallback, &XWaylandFallback::targetPositionChanged,
-                fallbackPicker.get(), [window = fallbackPicker.get()](int x, int y) {
-                    window->setFallbackPosition(QPoint(x, y));
+                fallbackPicker.get(), [&controller, window = fallbackPicker.get()](int x, int y) {
+                    if (controller.isFallbackMode()) {
+                        window->setFallbackPosition(QPoint(x, y));
+                    }
                 });
             QObject::connect(&xwaylandFallback, &XWaylandFallback::targetPositionInvalidated,
-                fallbackPicker.get(), &PickerWindow::clearFallbackPosition);
+                fallbackPicker.get(), [&controller, window = fallbackPicker.get()] {
+                    if (controller.isFallbackMode()) {
+                        window->clearFallbackPosition();
+                    }
+                });
         }
+    }
+    if (!demoMode && fallbackPicker) {
+        const auto updatePositionedDirect = [&controller, &contextRouter, &picker,
+                                                &pointerFallbackTimer, &xwaylandFallback,
+                                                &lastNoCaretClick, &lastNoCaretClickValid,
+                                                window = fallbackPicker.get()] {
+            const bool enabled = xwaylandFallback.isAvailable()
+                && contextRouter.route() == ContextRouter::Route::Direct
+                && contextRouter.activeApplicationId() == QStringLiteral("cudatext");
+            picker.setPositionedDirect(enabled);
+            window->setPositionedDirect(enabled);
+            if (enabled && !controller.isVisible()) {
+                QPoint position;
+                bool positionValid = lastNoCaretClickValid;
+                if (lastNoCaretClickValid) {
+                    position = lastNoCaretClick;
+                } else {
+                    positionValid = xwaylandFallback.currentPointerPosition(&position);
+                }
+                if (positionValid) {
+                    window->setFallbackPosition(position + QPoint(8, 24));
+                }
+            }
+            if (enabled && !pointerFallbackTimer.isActive()) {
+                pointerFallbackTimer.start();
+            } else if (!enabled) {
+                pointerFallbackTimer.stop();
+            }
+        };
+        QObject::connect(&contextRouter, &ContextRouter::activeApplicationChanged,
+            &application, [&lastNoCaretClickValid, updatePositionedDirect] {
+                lastNoCaretClickValid = false;
+                updatePositionedDirect();
+            });
+        QObject::connect(&contextRouter, &ContextRouter::routeChanged,
+            &application, updatePositionedDirect);
+        QObject::connect(&pointerFallbackTimer, &QTimer::timeout,
+            &application, updatePositionedDirect);
+        QObject::connect(&xwaylandFallback, &XWaylandFallback::pointerClicked,
+            &application, [&controller, &contextRouter, &lastNoCaretClick,
+                              &lastNoCaretClickValid, updatePositionedDirect](const QPoint &position) {
+                if (!controller.isVisible()
+                    && contextRouter.route() == ContextRouter::Route::Direct
+                    && contextRouter.activeApplicationId() == QStringLiteral("cudatext")) {
+                    lastNoCaretClick = position;
+                    lastNoCaretClickValid = true;
+                    updatePositionedDirect();
+                }
+            });
+        QObject::connect(&controller, &CompletionController::visibleChanged,
+            &application, [&controller, updatePositionedDirect] {
+                if (!controller.isVisible()) {
+                    updatePositionedDirect();
+                }
+            });
+        updatePositionedDirect();
     }
     if (demoMode) {
         QObject::connect(&controller, &CompletionController::visibleChanged, &application,

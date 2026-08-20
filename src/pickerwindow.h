@@ -9,6 +9,7 @@
 
 class CompletionController;
 class AppSettings;
+class EffectCapabilities;
 class FallbackLayerShellIntegration;
 class InputPanelShellIntegration;
 class WaylandInputMethod;
@@ -25,6 +26,7 @@ public:
     };
 
     PickerWindow(CompletionController *controller, AppSettings *settings,
+        EffectCapabilities *effectCapabilities,
         WaylandInputMethod *inputMethod,
         Mode mode, QWindow *parent = nullptr);
     ~PickerWindow() override;
@@ -32,18 +34,22 @@ public:
     bool initialize(QString *error = nullptr);
     void setFallbackPosition(const QPoint &globalPosition);
     void clearFallbackPosition();
+    void setPositionedDirect(bool enabled);
 
 private:
+    void applyEffects();
     void updateGeometry();
     void updateVisibility();
     void updateFallbackLayerPosition();
 
     CompletionController *m_controller = nullptr;
     AppSettings *m_settings = nullptr;
+    EffectCapabilities *m_effectCapabilities = nullptr;
     WaylandInputMethod *m_inputMethod = nullptr;
     std::unique_ptr<InputPanelShellIntegration> m_shellIntegration;
     std::unique_ptr<FallbackLayerShellIntegration> m_fallbackShellIntegration;
     Mode m_mode = Mode::Demo;
     QPoint m_fallbackGlobalPosition;
     bool m_fallbackPositionValid = false;
+    bool m_positionedDirect = false;
 };
